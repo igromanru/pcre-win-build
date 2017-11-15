@@ -4449,13 +4449,6 @@ Returns:            TRUE on success
                     FALSE, with *errorcodeptr set non-zero on error
 */
 
-#if defined(_MSC_VER) && _MSC_VER >= 1800
-#pragma warning(push)
-#pragma warning(disable: 4703) // potentially uninitialized local pointer variable 'slot' used.
-// The variable is initialized properly but the compiler is still giving the warning.
-// Suspected to be a bug of the compiler.
-#endif
-
 static BOOL
 compile_branch(int *optionsptr, pcre_uchar **codeptr,
   const pcre_uchar **ptrptr, int *errorcodeptr,
@@ -5746,6 +5739,21 @@ for (;; ptr++)
       ptr = p - 1;    /* Character before the next significant one. */
       }
 
+    /* We also need to skip over (?# comments, which are not dependent on
+    extended mode. */
+
+    if (ptr[1] == CHAR_LEFT_PARENTHESIS && ptr[2] == CHAR_QUESTION_MARK &&
+        ptr[3] == CHAR_NUMBER_SIGN)
+      {
+      ptr += 4;
+      while (*ptr != CHAR_NULL && *ptr != CHAR_RIGHT_PARENTHESIS) ptr++;
+      if (*ptr == CHAR_NULL)
+        {
+        *errorcodeptr = ERR18;
+        goto FAILED;
+        }
+      }
+
     /* If the next character is '+', we have a possessive quantifier. This
     implies greediness, whatever the setting of the PCRE_UNGREEDY option.
     If the next character is '?' this is a minimizing repeat, by default,
@@ -6762,7 +6770,7 @@ for (;; ptr++)
       int i, set, unset, namelen;
       int *optset;
       const pcre_uchar *name;
-      pcre_uchar *slot = NULL;
+      pcre_uchar *slot;
 
       switch (*(++ptr))
         {
@@ -8217,7 +8225,6 @@ for (;; ptr++)
 
       if (mclength == 1 || req_caseopt == 0)
         {
-        firstchar = mcbuffer[0] | req_caseopt;
         firstchar = mcbuffer[0];
         firstcharflags = req_caseopt;
 
@@ -8260,9 +8267,6 @@ FAILED:
 return FALSE;
 }
 
-#if defined(_MSC_VER) && _MSC_VER >= 1900
-#pragma warning(pop) // Reset 4703.
-#endif
 
 
 /*************************************************
